@@ -1,0 +1,152 @@
+# ******************************************************************************
+
+
+# ******************************************************************************
+#install.packages("tidyverse")
+#install.packages("tidyverse")
+#install.packages("qdap")
+library("tidyverse")
+library(qdap)
+
+### Part 1. 
+##Q1 Import the data using the read.csv() function.
+setwd("D:/UIUC/Fall 2019/Stat 430/final projects")
+austin_lots = read.csv("Austin_Lots.csv")
+
+##1.1 What are the initial dimensions of the dataset?
+dim(austin_lots)
+
+##1.2 Look at the column descriptions above. Which four columns do you think will be the least helpful in selecting an ideal site for the GlobalTechSync headquarters?  Why do you think these are less helpful?
+
+# Answer: created_by,date_creat, modified_b, date_modif
+# These four columns seems least helpful because they are just log info for the database, without containing any information about the location.
+
+##1.3Subset your data by removing the unnecessary columns you identified. What are the new dataset dimensions?
+austin_lots$created_by = NULL
+austin_lots$date_creat = NULL
+austin_lots$modified_b = NULL
+austin_lots$date_modif = NULL
+dim(austin_lots)
+
+##1.4 Why is it useful to subset your data before starting your analysis?
+#Subsetting the data allows us just focus the parts of large files which are of interest for a specific purpose.
+#It's especially useful when there are lots of irrelevant data.
+
+##1.5 The current column names can be hard to read and recognize. Rename some of the columns so that the variables are easier to work with. Display your new set of column names.
+#old names
+colnames(austin_lots)
+#updated names
+colnames(austin_lots)[1] = "row_id"
+colnames(austin_lots)[3] = "land_base_id"
+colnames(austin_lots)[4] = "land_base_type"
+colnames(austin_lots)[11] = "zoning_designation"
+colnames(austin_lots)[12] = "zipcode"
+colnames(austin_lots)[22] = "bike_confLevel"
+colnames(austin_lots)
+
+##Q2 Dealing with missing values.
+##2.1 What columns in the dataset contain missing values?
+
+#Amswer:
+#Blank is used to indicate missing values in block_id, lot_id, land_base_type, zoning_designation, Housing__, Education, Economic__, Comprehens, Descriptio.
+#0 is used to indicate missing values in LAND_USE_2 , GENERAL_LA.
+colSums(is.na(austin_lots))
+#NA is used to indicate missing values in GEOID, and there is one instance (row_id: 470) of NA in Med_HH_Inc, Med_rent, Med_home, Aff_rent_t, Aff_own_te.
+filter(austin_lots, austin_lots$row_id == 470)
+
+##2.2 Briefly describe how you deal will with these missing values and justify why you chose these methods.
+#Answer:
+#Let's take a look at diff levels of block_id as an example.
+levels(austin_lots$block_id)
+#Because we do not have more information about specific block_id meaning, I would like to keep the missing values blank, since it makes no sense to replace by mean value or drop the observation (may be useful in the future). 
+#For the same reason, I would like to keep the cells blank in block_id, lot_id, land_base_type, zoning_designation,and Descriptio.
+#For LAND_USE_2 , GENERAL_LA,  I would like to keep the values 0 since there's no expalination for code 0 in applendix.  
+#For Housing__, Education, Economic__, and Comprehens, I would like to replace the blank values by "Moderate", because it is "Moderate" makes seem when we do not have the information.
+#We will drop the colume GEOID in step 3.4, so we don't care about the NA values in GEOID.
+#I would like to replace the instance (row_id: 470) of NA values in Med_HH_Inc, Med_rent, Med_home, Aff_rent_t, Aff_own_te with 0.
+
+##2.3 Describe how your choice of method to deal with missing values may affect your later analysis.
+#Answer:
+
+##2.4 Implement your methods for dealing with the missing values.
+#Answer:
+
+##2.5 After dealing with missing values, once again show the new dimensions of the dataset.
+#Answer:
+dim(austin_lots)
+
+##Q3 Data cleaning.
+##3.1 For the column initially called land_base1, how many unique values exist? Display the current value set and how many occurrences there are for each value. Indicate any values you think are errors.
+#Answer:
+#"land_base1" was renamed as "land_base_type".
+land_levels = levels(austin_lots$land_base_type)
+length(land_levels)
+#10 unique values exist. 
+out = sapply(land_levels, function(x) length(which(austin_lots$land_base_type==x)))
+out
+# Lot, LOT, lott, should be treat as the same thing; Parcel, PARCEL, PCL shoulde be treated as the same thing; Tract, TRACT shoule be treated as the same thing.
+
+#3.2 Please standardize the values for the land_base1 column (so that each value that refers to the same thing has the same format). Then display the current values with how many there are of each. (Hint: what class of variable does R consider this to be?)
+#Answer:
+austin_lots = within(austin_lots, land_base_type[land_base_type %in% c("Lot","LOT","lott")] <- "LOT")
+austin_lots = within(austin_lots, land_base_type[land_base_type %in% c("Parcel","PCL", "PARCEL")] <- "PARCEL")
+austin_lots = within(austin_lots, land_base_type[land_base_type %in% c("TRACT","Tract")] <- "TRACT")
+out = sapply(land_levels, function(x) length(which(austin_lots$land_base_type==x)))
+out
+
+#3.3 You realize that some of the tax_break2 values contain dollar signs. Find these instances and remove the dollar sign. Do you need to change the variable class? If so, go ahead.
+#Answer:
+austin_lots$tax_break2 = as.numeric(gsub("\\$", "", austin_lots$tax_break2))
+
+#3.4 It's happened again! Someone used Excel to open the files at one point and the values for GEOID (a 12 digit unique block group identifier) have been stored using scientific notation. What does a value in this column look like when you display it as an integer not in scientific notation? How many unique values are in this column? Why is this a bad thing? If you haven't already done so, delete this column.
+#Answer:
+#4.85e+11 will be like 485000000000. 
+n_distinct(austin_lots$GEOID)
+#There is only 2 distinct number (NA and 4.85e+11) in this column. Thus, it is not giving us enough information to identify each of them, becausue they are suppose to be unique.
+austin_lots$GEOID = NULL
+
+#3.5 Someone from the data department lets you know that there are likely 2 fully or partially duplicated rows in this dataset. Find these two rows and remove the duplicated rows (keep the copy of the duplicated row with the most information). Display the updated data set dimensions.
+#Answer:
+#
+austin_lots$row_id[duplicated(austin_lots$row_id)]
+filter(austin_lots, austin_lots$row_id == 376)
+#row_id = 376 is having fully duplicated rows
+filter(austin_lots, austin_lots$row_id == 470)
+#row_id = 470 is having partially duplicated rows, drop the first instance since there is more info in the second 
+austin_lots = austin_lots[-c(377,473),]
+#the dropped instances were at row 377, 473
+dim(austin_lots)   
+
+#3.6 It turns out that the specific land use codes (LAND_USE_2) have missing metadata - no one can remember what they actually mean! Delete this column. Explain why metadata is so important.
+#Answer:
+austin_lots$LAND_USE_2 = NULL
+#Metadata is the data about data -- metadata describes data containing specific information like type, length, textual description and other characteristics.
+#Thus, it's very important to help understand the data.
+
+#3.7 Describe why these cleaning steps are necessary. What would happen if you needed to use these columns in later analyses?
+#Answer: 
+#Data cleansing is important because it improves your data quality and overall productivity. Removing duplicates and standeardizing the values allow us get better results in later steps.
+#If I needed to use deleted columns in later analyses, I'll read the csv file again and add back the columns needed.
+
+
+#3.8 Comment on and explain any other data cleaning or preparation steps you think would be necessary from your inspection of the data (you do not need to carry them out).
+#Answer: 
+
+
+
+
+#4.3
+sapply(austin_lots, class)
+austin_lots$Descriptio = as.character(austin_lots$Descriptio)
+sapply(austin_lots, class)
+
+#8.1
+
+austin_lots$Descriptio = lapply(austin_lots$Descriptio, tolower)
+#info?
+
+#8.2
+wordlist = unique(unlist(strsplit(austin_lots$Descriptio, " ")))
+stopwords = c("a", "about", "across", "after", "all", "almost", "also", "am", "among", "an", "and", "any", "are", "as", "at", "be", "because", "been", "but", "by", "can", "cannot", "could", "dear", "did", "do", "does", "either", "else", "ever", "every", "for", "from", "get", "got", "had", "has", "have", "he", "her", "hers", "him", "his", "how", "however", "i", "if", "in", "into", "is", "it", "its", "just", "least", "let", "like", "likely", "may", "me", "might", "most", "must", "my", "neither", "no", "nor", "not", "of", "off", "often", "on", "only", "or", "other", "our", "own", "rather", "said", "say", "says", "she", "should", "since", "so", "some", "than", "that", "the", "their", "them", "then", "there", "these", "they", "this", "is", "to", "too", "was", "us", "wants", "was", "we", "were", "what", "when", "where", "which", "while", "who", "whom", "why", "will", "with", "would", "yet", "you", "your")
+wordlist = wordlist[!wordlist %in% stopWordList]
+head(wordlist, n=10)
